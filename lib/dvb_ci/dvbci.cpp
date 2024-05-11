@@ -184,8 +184,6 @@ eDVBCIInterfaces::eDVBCIInterfaces()
 			eDebug("[CI] Streaming CI finish interface not advertised, assuming \"tuner\" method");
 		}
 	}
-	m_ciplus_routing_active = false;
-	m_ciplus_routing_tunernum = -1;
 
 	run();
 }
