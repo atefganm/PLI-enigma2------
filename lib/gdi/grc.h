@@ -205,7 +205,7 @@ struct gOpcode
 			ePoint point;
 			eSize size;
 		} *setShowItemInfo;
-		
+
 		struct psetFlush
 		{
 			bool enable;
@@ -385,7 +385,7 @@ public:
 #endif
 };
 
-class gDC: public iObject
+class gDC : public iObject
 {
 	DECLARE_REF(gDC);
 
