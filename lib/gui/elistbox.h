@@ -150,7 +150,8 @@ public:
 		moveEnd,
 		pageUp,
 		pageDown,
-		justCheck
+		justCheck,
+		refresh
 	};
 
 	void setItemHeight(int h);
