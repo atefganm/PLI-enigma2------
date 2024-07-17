@@ -11,6 +11,12 @@
 #define PNG_SKIP_SETJMP_CHECK
 #include <png.h>
 
+#ifdef HAVE_OLDE2_API
+#ifndef FBIO_WAITFORVSYNC
+#define FBIO_WAITFORVSYNC _IOW('F', 0x20, uint32_t)
+#endif
+#endif
+
 #ifndef FBIO_BLIT
 #define FBIO_SET_MANUAL_BLIT _IOW('F', 0x21, __u8)
 #define FBIO_BLIT 0x22
@@ -310,7 +316,7 @@ void eFbLCD::dumpLCD(bool png=true)
 void eFbLCD::save2png(unsigned char* output, int xRes, int yRes)
 {
 	int output_bytes=4; //osd only
-	const char* filename = "/tmp/lcd.png";
+	const char* filename = "/tmp/lcdshot.png";
 
 	FILE *fd2;
 	fd2 = fopen(filename, "wr");
@@ -348,7 +354,7 @@ void eFbLCD::save2png(unsigned char* output, int xRes, int yRes)
 void eFbLCD::save2bmp(unsigned char* output, int xRes, int yRes)
 {
 	int output_bytes=4;  //osd only
-	const char* filename = "/tmp/lcd.bmp";
+	const char* filename = "/tmp/lcdshot.bmp";
 
 	FILE *fd2;
 	fd2 = fopen(filename, "wr");
