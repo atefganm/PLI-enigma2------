@@ -7,7 +7,6 @@
 #include <lib/gdi/epng.h>
 #include <lib/gdi/pixmapcache.h>
 #include <unistd.h>
-#include <lib/base/estring.h>
 
 #include <map>
 #include <string>
@@ -128,9 +127,8 @@ int loadPNG(ePtr<gPixmap> &result, const char *filename, int accel, int cached)
 	channels = png_get_channels(png_ptr, info_ptr);
 
 	result = new gPixmap(width, height, bit_depth * channels, cached ? PixmapCache::PixmapDisposed : NULL, accel);
-	result->isPNG = true;
 	gUnmanagedSurface *surface = result->surface;
-
+	
 	png_bytep *rowptr = new png_bytep[height];
 	for (unsigned int i = 0; i < height; i++)
 		rowptr[i] = ((png_byte*)(surface->data)) + i * surface->stride;
@@ -149,7 +147,7 @@ int loadPNG(ePtr<gPixmap> &result, const char *filename, int accel, int cached)
 		png_get_tRNS(png_ptr, info_ptr, &trans_alpha, &num_trans, &trans_color);
 		surface->transparent = (trans_alpha != NULL);
 	}
-
+	
 	int num_palette = -1, num_trans = -1;
 	if (color_type == PNG_COLOR_TYPE_PALETTE) {
 		if (png_get_valid(png_ptr, info_ptr, PNG_INFO_PLTE)) {
@@ -387,7 +385,7 @@ static int savePNGto(FILE *fp, gPixmap *pixmap)
 	return 0;
 }
 
-int loadSVG(ePtr<gPixmap> &result, const char *filename, int cached, int width, int height, float scale, int keepAspect, int align)
+int loadSVG(ePtr<gPixmap> &result, const char *filename, int cached, int width, int height, float scale)
 {
 	result = nullptr;
 	int size = 0;
@@ -407,8 +405,6 @@ int loadSVG(ePtr<gPixmap> &result, const char *filename, int cached, int width, 
 	NSVGrasterizer *rast = nullptr;
 	double xscale = 1.0;
 	double yscale = 1.0;
-	double tx = 0.0;
-	double ty = 0.0;
 
 	image = nsvgParseFromFile(filename, "px", 96.0);
 	if (image == nullptr)
@@ -421,53 +417,34 @@ int loadSVG(ePtr<gPixmap> &result, const char *filename, int cached, int width, 
 		return 0;
 	}
 
-	if (width > 0 && height > 0 && keepAspect) {
-		double sourceWidth = image->width;
-		double sourceHeight = image->height;
-		double widthScale = 0, heightScale = 0;
-		if (sourceWidth > 0)
-			widthScale = (double)width / sourceWidth;
-		if (sourceHeight > 0)
-			heightScale = (double)height / sourceHeight;                
+	if (height > 0)
+		yscale = ((double) height) / image->height;
 
-		double scale = std::min(widthScale, heightScale);
-		yscale = scale;
-		xscale = scale;
-		int new_width = (int)(image->width * xscale);
-		int new_height = (int)(image->height * scale);
-		if (align == 2) tx = width - new_width; // Right alignment
-		else if (align == 4) tx = (int)(((double)(width - new_width))/2); // Center alignment
-		ty = (int)(((double)(height - new_height))/2);
-	} else {
-		if (height > 0)
-			yscale = ((double) height) / image->height;
-
-		if (width > 0)
+	if (width > 0)
+	{
+		xscale = ((double) width) / image->width;
+		if (height <= 0)
 		{
-			xscale = ((double) width) / image->width;
-			if (height <= 0)
-			{
-				yscale = xscale;
-				height = (int)(image->height * yscale);
-			}
+			yscale = xscale;
+			height = (int)(image->height * yscale);
 		}
-		else if (height > 0)
-		{
-			xscale = yscale;
-			width = (int)(image->width * xscale);
-		}
-		else if (scale > 0)
-		{
-			xscale = (double) scale;
-			yscale = (double) scale;
-			width = (int)(image->width * scale);
-			height = (int)(image->height * scale);
-		}
-		else
-		{
-			width = (int)image->width;
-			height = (int)image->height;
-		}
+	}
+	else if (height > 0)
+	{
+		xscale = yscale;
+		width = (int)(image->width * xscale);
+	}
+	else if (scale > 0)
+	{
+		xscale = (double) scale;
+		yscale = (double) scale;
+		width = (int)(image->width * scale);
+		height = (int)(image->height * scale);
+	}
+	else
+	{
+		width = (int)image->width;
+		height = (int)image->height;
 	}
 
 	result = new gPixmap(width, height, 32, cached ? PixmapCache::PixmapDisposed : NULL, -1);
@@ -480,7 +457,7 @@ int loadSVG(ePtr<gPixmap> &result, const char *filename, int cached, int width, 
 
 	eDebug("[ePNG] loadSVG %s %dx%d from %dx%d", filename, width, height, (int)image->width, (int)image->height);
 	// Rasterizes SVG image, returns RGBA image (non-premultiplied alpha)
-	nsvgRasterizeFull(rast, image, tx, ty, xscale, yscale, (unsigned char*)result->surface->data, width, height, width * 4, 1);
+	nsvgRasterizeFull(rast, image, 0, 0, xscale, yscale, (unsigned char*)result->surface->data, width, height, width * 4, 1);
 
 	if (cached)
 		PixmapCache::Set(cachefile, result);
@@ -491,14 +468,14 @@ int loadSVG(ePtr<gPixmap> &result, const char *filename, int cached, int width, 
 	return 0;
 }
 
-int loadImage(ePtr<gPixmap> &result, const char *filename, int accel, int width, int height, int cached, float scale, int keepAspect, int align)
+int loadImage(ePtr<gPixmap> &result, const char *filename, int accel, int width, int height)
 {
 	if (endsWith(filename, ".png"))
-		return loadPNG(result, filename, accel, cached == -1 ? 1 : cached);
+		return loadPNG(result, filename, accel, 1);
 	else if (endsWith(filename, ".svg"))
-		return loadSVG(result, filename, cached == -1 ? 1 : cached, width, height, scale, keepAspect, align);
+		return loadSVG(result, filename, 1, width, height, 0);
 	else if (endsWith(filename, ".jpg"))
-		return loadJPG(result, filename, cached == -1 ? 0 : cached);
+		return loadJPG(result, filename, 0);
 	else if (endsWith(filename, ".gif"))
 		return loadGIF(result, filename, accel, 0);
 	return 0;
@@ -653,7 +630,6 @@ int loadGIF(ePtr<gPixmap> &result, const char *filename, int accel,int cached)
 	surface->clut.data = m_filepara->palette;
 	surface->clut.colors = m_filepara->palette_size;
 	m_filepara->palette = NULL; // transfer ownership
-	int o_y=0, u_y=0, v_x=0, h_x=0;
 	int extra_stride = surface->stride - surface->x;
 
 	unsigned char *tmp_buffer=((unsigned char *)(surface->data));
