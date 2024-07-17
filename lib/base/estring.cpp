@@ -14,6 +14,21 @@
 #include "gb18030.h"
 #include <Python.h>
 
+bool contains(const std::string &str, const std::string &substr)
+{
+	return substr.size() && str.size() >= substr.size() && str.find(substr) != std::string::npos;
+}
+
+bool endsWith(const std::string &str, const std::string &suffix)
+{
+	return suffix.size() && str.size() >= suffix.size() && str.find(suffix) + suffix.size() == str.size();
+}
+
+bool startsWith(const std::string& str, const std::string& prefix)
+{
+	return prefix.size() && str.size() >= prefix.size() && str.find(prefix) == 0;
+}
+
 std::string buildShortName( const std::string &str )
 {
 	std::string tmp;
@@ -820,11 +835,12 @@ std::string convertDVBUTF8(const unsigned char *data, int len, int table, int ts
 	//	table, (unsigned int)tsidonid >> 16, tsidonid & 0xFFFFU,
 	//	string_to_hex(std::string((char*)data, len < 15 ? len : 15)).c_str(),
 	//	output.c_str());
+
 	// replace EIT CR/LF with standard newline:
 	output = replace_all(replace_all(output, "\xC2\x8A", "\n"), "\xEE\x82\x8A", "\n");
+
 	// remove character emphasis control characters:
 	output = replace_all(replace_all(replace_all(replace_all(output, "\xC2\x86", ""), "\xEE\x82\x86", ""), "\xC2\x87", ""), "\xEE\x82\x87", "");
-
 	return output;
 }
 
@@ -943,7 +959,6 @@ int isUTF8(const std::string &string)
 	return 1; // can be UTF8 (or pure ASCII, at least no non-UTF-8 8bit characters)
 }
 
-
 std::string repairUTF8(const char *szIn, int len)
 {
 	Py_ssize_t sz = len;
@@ -952,7 +967,6 @@ std::string repairUTF8(const char *szIn, int len)
 	Py_DECREF(pyinput);
 	return res;
 }
-
 
 unsigned int truncateUTF8(std::string &s, unsigned int newsize)
 {
@@ -963,14 +977,14 @@ unsigned int truncateUTF8(std::string &s, unsigned int newsize)
 
 	if (len > idx){
 		while (idx > 0) {
-			if (!(s.at(idx) & 0x80) || (s.at(idx) & 0xc0) == 0xc0){
-				if (!(s.at(idx) & 0x80))
+			if (s[idx] < 0x80 || (s[idx] & 0xc0) == 0xc0){
+				if (s[idx] < 0x80)
 					idx++;
-				else if ((s.at(idx) & 0xF8) == 0xf0 && n == 3)
+				else if ((s[idx] & 0xF8) == 0xf0 && n == 3)
 					idx += n + 1;
-				else if ((s.at(idx) & 0xF0) == 0xe0 && n == 2)
+				else if ((s[idx] & 0xF0) == 0xe0 && n == 2)
 					idx += n + 1;
-				else if ((s.at(idx) & 0xE0) == 0xc0 && n == 1)
+				else if ((s[idx] & 0xE0) == 0xc0 && n == 1)
 					idx += n + 1;
 				break;
 			}
