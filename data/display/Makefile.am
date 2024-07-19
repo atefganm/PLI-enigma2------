@@ -6,34 +6,6 @@ else
 DISPLAYTYPE = display
 endif
 
-if HAVE_COLORLCD2
-SUBDIRS += display96
-endif
-
-if HAVE_COLORLCD1
-SUBDIRS += display128
-endif
-
-if HAVE_COLORLCD3
-SUBDIRS += display128dm
-endif
-
-if HAVE_COLORLCD240
-SUBDIRS += display240
-endif
-
-if HAVE_COLORLCD390
-SUBDIRS += display390
-endif
-
-if HAVE_COLORLCD400
-SUBDIRS += display400
-endif
-
-if HAVE_7SEGMENT
-SUBDIRS += 7segment
-endif
-
 dist_install_DATA = skin_display.xml
 
 # Use box-specific XML if it exists, otherwise get the default
