@@ -6,7 +6,6 @@
 #include <fstream>
 #include <sstream>
 #include <iomanip>
-#include <string>
 
 #include <lib/base/init.h>
 #include <lib/base/init_num.h>
@@ -15,6 +14,7 @@
 
 #include <lib/base/eerror.h>
 #include <lib/base/nconfig.h> // access to python config
+#include <lib/base/esimpleconfig.h>
 #include <lib/dvb/db.h>
 #include <lib/dvb/pmt.h>
 #include <lib/dvb_ci/dvbci.h>
@@ -33,7 +33,7 @@ eDVBCIInterfaces *eDVBCIInterfaces::instance = 0;
 pthread_mutex_t eDVBCIInterfaces::m_pmt_handler_lock = PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP;
 pthread_mutex_t eDVBCIInterfaces::m_slot_lock = PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP;
 
-char* readInputCI(int NimNumber)
+static char* readInputCI(int NimNumber)
 {
 	char id1[] = "NIM Socket";
 	char id2[] = "Input_Name";
@@ -87,26 +87,19 @@ char* readInputCI(int NimNumber)
 	return inputName;
 }
 
-std::string getTunerLetterDM(int NimNumber)
+static std::string getTunerLetterDM(int NimNumber)
 {
 	char *srcCI = readInputCI(NimNumber);
 	if (srcCI) {
 		std::string ret = std::string(srcCI);
 		free(srcCI);
-		if (ret.size() == 1){
-			int corr = 1;
-			if (NimNumber > 7) {
-				corr = -7;
-			}
-			return ret + std::to_string(NimNumber + corr);
-		}
 		return ret;
 	}
 	return eDVBCISlot::getTunerLetter(NimNumber);
 }
 
 eDVBCIInterfaces::eDVBCIInterfaces()
- : m_messagepump_thread(this,1), m_messagepump_main(eApp,1), m_runTimer(eTimer::create(this))
+ : m_messagepump_thread(this,1, "dvbci"), m_messagepump_main(eApp,1, "dvbci"), m_runTimer(eTimer::create(this))
 {
 	int num_ci = 0;
 	std::stringstream path;
@@ -390,11 +383,7 @@ void eDVBCIInterfaces::ciRemoved(eDVBCISlot *slot)
 		if (slot->linked_next)
 			slot->linked_next->setSource(slot->current_source);
 		else // last CI in chain
-#ifdef DREAMBOX_DUAL_TUNER
-			setInputSource(slot->current_tuner, getTunerLetterDM(slot->current_tuner));
-#else
 			setInputSource(slot->current_tuner, eDVBCISlot::getTunerLetter(slot->current_tuner));
-#endif
 		slot->linked_next = 0;
 		slot->use_count=0;
 		slot->plugged=true;
@@ -409,7 +398,7 @@ bool eDVBCIInterfaces::canDescrambleMultipleServices(eDVBCISlot* slot)
 	singleLock s(m_slot_lock);
 	char configStr[255];
 	snprintf(configStr, 255, "config.ci.%d.canDescrambleMultipleServices", slot->getSlotID());
-	std::string str = eConfigManager::getConfigValue(configStr);
+	std::string str = eSimpleConfig::getString(configStr, "auto");
 	if ( str == "auto" )
 	{
 		if (slot->getAppManager())
@@ -827,10 +816,10 @@ void eDVBCIInterfaces::removePMTHandler(eDVBServicePMTHandler *pmthandler)
 					{
 						eDebug("[CI] warning: CI streaming finish mode not set, assuming \"tuner A\"");
 #ifdef DREAMBOX_DUAL_TUNER
-						finish_source = getTunerLetterDM(0);
+							finish_source = getTunerLetterDM(0);
 #else
 						finish_source = "A";
-#endif 
+#endif  
 					}
 
 					slot->setSource(finish_source);
@@ -842,11 +831,7 @@ void eDVBCIInterfaces::removePMTHandler(eDVBServicePMTHandler *pmthandler)
 				if (slot->linked_next)
 					slot->linked_next->setSource(slot->current_source);
 				else
-#ifdef DREAMBOX_DUAL_TUNER
-					setInputSource(slot->current_tuner, getTunerLetterDM(slot->current_tuner));
-#else
 					setInputSource(slot->current_tuner, eDVBCISlot::getTunerLetter(slot->current_tuner));
-#endif
 
 				if (base_slot != slot)
 				{
@@ -876,7 +861,7 @@ void eDVBCIInterfaces::gotPMT(eDVBServicePMTHandler *pmthandler)
 {
 	// language config can only be accessed by e2 mainloop
 	if (m_language == "")
-		m_language = eConfigManager::getConfigValue("config.osd.language");
+		m_language = eConfigManager::getConfigValue("config.misc.locale");
 
 	singleLock s1(m_pmt_handler_lock);
 	singleLock s2(m_slot_lock);
@@ -1138,7 +1123,7 @@ int eDVBCIInterfaces::setCIEnabled(int slotid, bool enabled)
 	return -1;
 }
 
-int eDVBCIInterfaces::setCIClockRate(int slotid, int rate)
+int eDVBCIInterfaces::setCIClockRate(int slotid, const std::string &rate)
 {
 	singleLock s(m_slot_lock);
 	eDVBCISlot *slot = getSlot(slotid);
@@ -1234,11 +1219,7 @@ void eDVBCIInterfaces::setCIPlusRouting(int slotid)
 		new_input_source << "CI" << slot->getSlotID();
 
 		setInputSource(tunernum, new_input_source.str());
-#ifdef DREAMBOX_DUAL_TUNER
-		slot->setSource(getTunerLetterDM(tunernum));
-#else
 		slot->setSource(eDVBCISlot::getTunerLetter(tunernum));
-#endif
 
 		slot->setCIPlusRoutingParameter(tunernum, ciplus_routing_input, ciplus_routing_ci_input);
 		eDebug("[CI] CIRouting active slotid=%d tuner=%d old_input=%s old_ci_input=%s", slotid, tunernum, ciplus_routing_input.c_str(), ciplus_routing_ci_input.c_str());
@@ -1337,8 +1318,6 @@ void eDVBCISlot::data(int what)
 				eTraceNoNewLine("%02x ",data[i]);
 			eTraceNoNewLine("\n");
 			eDVBCISession::receiveData(this, data, r);
-			// receiving data means probably decoding on this slot is started succesfully. So mark this slot as descrambling
-			/* emit */ eDVBCI_UI::getInstance()->m_messagepump.send(eDVBCIInterfaces::Message(eDVBCIInterfaces::Message::slotDecodingStateChanged, getSlotID(), 2));
 			eDVBCISession::pollAll();
 			return;
 		}
@@ -1380,21 +1359,11 @@ eDVBCISlot::eDVBCISlot(eMainloop *context, int nr):
 	user_mapped = false;
 	plugged = false;
 	m_ci_version = versionUnknown;
-	char config_key_operator_profile[255];
-	snprintf(config_key_operator_profile, 255, "config.ci.%d.disable_operator_profile", slotid);
-	bool operator_profile_disabled = eConfigManager::getConfigBoolValue(config_key_operator_profile, false);
-	m_operator_profiles_disabled = operator_profile_disabled;
-	char config_key_ca0_excluded[255];
-	snprintf(config_key_ca0_excluded, 255, "config.ci.%d.exclude_ca0_device", slotid);
-	bool ca0_excluded = eConfigManager::getConfigBoolValue(config_key_ca0_excluded, false);
-	m_ca0_excluded = ca0_excluded;
 	snprintf(configStr, 255, "config.ci.%d.enabled", slotid);
-	bool enabled = eConfigManager::getConfigBoolValue(configStr, true);
-	if (enabled)
-	{
-		int bootDelay = eConfigManager::getConfigIntValue("config.cimisc.bootDelay");
-		if (bootDelay) 
-		{
+	bool enabled = eSimpleConfig::getBool(configStr, true);
+	if (enabled) {
+		int bootDelay = eSimpleConfig::getInt("config.cimisc.bootDelay", 5);
+		if (bootDelay) {
 			CONNECT(startup_timeout->timeout, eDVBCISlot::openDevice);
 			startup_timeout->start(1000 * bootDelay, true);
 		}
@@ -1835,11 +1804,11 @@ int eDVBCISlot::setSource(const std::string &source)
 	return 0;
 }
 
-int eDVBCISlot::setClockRate(int rate)
+int eDVBCISlot::setClockRate(const std::string &rate)
 {
 	char buf[64];
 	snprintf(buf, sizeof(buf), "/proc/stb/tsmux/ci%d_tsclk", slotid);
-	if(CFile::write(buf, rate ? "high" : "normal") == -1)
+	if(CFile::writeStr(buf, rate) == -1)
 		return -1;
 	return 0;
 }

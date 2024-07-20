@@ -78,8 +78,6 @@ class eDVBCISlot: public iObject, public sigc::trackable
 	int m_tunernum;
 	eMainloop *m_context;
 	int m_ciplus_routing_tunernum;
-	bool m_operator_profiles_disabled;
-	bool m_ca0_excluded;
 	std::string m_ciplus_routing_input;
 	std::string m_ciplus_routing_ci_input;
 
@@ -108,13 +106,11 @@ class eDVBCISlot: public iObject, public sigc::trackable
 	int setCaParameter(eDVBServicePMTHandler *pmthandler);
 	void removeService(uint16_t program_number=0xFFFF);
 	int setSource(const std::string &source);
-	int setClockRate(int);
+	int setClockRate(const std::string &rate);
 	void determineCIVersion();
 	int setEnabled(bool);
-	static std::string getTunerLetter(int tuner_no) { return std::string(1, char(65 + tuner_no)); }
-	static std::string getTunerLetterDM(int);
-	static char* readInputCI(int);
 public:
+	static std::string getTunerLetter(int tuner_no) { return std::string(1, char(65 + tuner_no)); }
 	enum {stateRemoved, stateInserted, stateInvalid, stateResetted, stateDisabled};
 	enum {versionUnknown = -1, versionCI = 0, versionCIPlus1 = 1, versionCIPlus2 = 2};
 	eDVBCISlot(eMainloop *context, int nr);
@@ -133,8 +129,6 @@ public:
 	int getSlotID();
 	int getNumOfServices();
 	int getVersion();
-	bool getIsOperatorProfileDisabled() { return m_operator_profiles_disabled; };
-	bool getIsCA0Excluded() { return m_ca0_excluded; };
 	int16_t getCADemuxID() { return m_ca_demux_id; };
 	int getTunerNum() { return m_tunernum; };
 	int getUseCount() { return use_count; };
@@ -230,7 +224,7 @@ public:
 	int cancelEnq(int slot);
 	int getMMIState(int slot);
 	int setInputSource(int tunerno, const std::string &source);
-	int setCIClockRate(int slot, int rate);
+	int setCIClockRate(int slot, const std::string &rate);
 	void setCIPlusRouting(int slotid);
 	void revertCIPlusRouting(int slotid);
 	bool canDescrambleMultipleServices(eDVBCISlot* slot);
@@ -250,8 +244,7 @@ public:
 			slotStateChanged,
 			mmiSessionDestroyed,
 			mmiDataReceived,
-			appNameChanged,
-			slotDecodingStateChanged
+			appNameChanged
 		};
 		int m_type;
 		int m_slotid;
