@@ -33,7 +33,7 @@ eDVBCIInterfaces *eDVBCIInterfaces::instance = 0;
 pthread_mutex_t eDVBCIInterfaces::m_pmt_handler_lock = PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP;
 pthread_mutex_t eDVBCIInterfaces::m_slot_lock = PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP;
 
-static char* readInputCI(int NimNumber)
+char* readInputCI(int NimNumber)
 {
 	char id1[] = "NIM Socket";
 	char id2[] = "Input_Name";
@@ -87,7 +87,7 @@ static char* readInputCI(int NimNumber)
 	return inputName;
 }
 
-static std::string getTunerLetterDM(int NimNumber)
+std::string getTunerLetterDM(int NimNumber)
 {
 	char *srcCI = readInputCI(NimNumber);
 	if (srcCI) {
